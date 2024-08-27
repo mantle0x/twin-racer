@@ -169,6 +169,7 @@
 function update(dt) {
     var playerSegment = findSegment(position + playerZ);
     var playerW = playerStraightSprite.width * SPRITES.SCALE;
+    var playerH = playerStraightSprite.height * SPRITES.SCALE;
     var speedPercent = speed / maxSpeed;
     var dx = dt * 2 * speedPercent;
     var startPosition = position;
@@ -206,8 +207,30 @@ function update(dt) {
     for (var n = 0; n < playerSegment.cars.length; n++) {
         var car = playerSegment.cars[n];
         var carW = car.sprite.width * SPRITES.SCALE;
+        var carH = car.sprite.height * SPRITES.SCALE;
+
+        var playerBoundingBox = {
+            left: playerX - playerW / 2,
+            right: playerX + playerW / 2,
+            top: playerZ,
+            bottom: playerZ + playerH
+        };
+
+        var carBoundingBox = {
+            left: car.offset - carW / 2,
+            right: car.offset + carW / 2,
+            top: car.z,
+            bottom: car.z + carH
+        };
+
+        // Check for bounding box overlap (collision)
         if (speed > car.speed) {
-            if (Util.overlap(playerX, playerW, car.offset, carW, 0.8)) {
+            if (playerBoundingBox.right > carBoundingBox.left &&
+                playerBoundingBox.left < carBoundingBox.right &&
+                playerBoundingBox.bottom > carBoundingBox.top &&
+                playerBoundingBox.top < carBoundingBox.bottom) {
+
+                // Handle collision response
                 speed = car.speed * (car.speed / speed);
                 position = Util.increase(car.z, -playerZ, trackLength);
 
@@ -270,6 +293,7 @@ function update(dt) {
     // Apply the dynamic camera changes
     cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
 }
+
 
 
 
