@@ -162,6 +162,10 @@ function update(dt) {
     var startPosition = position;
     var bounce = 0;
 
+    // Dynamic camera adjustments
+    var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
+    var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
+
     updateCars(dt, playerSegment, playerW);
 
     position = Util.increase(position, dt * speed, trackLength);
@@ -180,10 +184,10 @@ function update(dt) {
         if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
 
         // Add a bounce effect when the car is off-road
-        bounce = Math.sin(Date.now() / 100) * 10; // Increase multiplier for more noticeable bounce
+        bounce = Math.sin(Date.now() / 100) * 10;
 
         // Trigger screen shake when off-road
-        shakeAmount = Math.min(10, shakeAmount + 5); // Increase the shake intensity
+        shakeAmount = Math.min(10, shakeAmount + 5);
     }
 
     // Collision detection with other cars
@@ -196,7 +200,7 @@ function update(dt) {
                 position = Util.increase(car.z, -playerZ, trackLength);
 
                 // Trigger a stronger shake on collision, but smoother
-                shakeAmount = Math.min(15, shakeAmount + 7); // Smoother and less intense for NPC cars
+                shakeAmount = Math.min(15, shakeAmount + 7);
                 break;
             }
         }
@@ -250,7 +254,12 @@ function update(dt) {
         coinTimer = 0;
         coinDropInterval = Util.randomInt(2000, 5000);
     }
+
+    // Apply the dynamic camera changes
+    cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
 }
+
+
 
 // Start Render Function
 
@@ -281,8 +290,8 @@ function render() {
         segment.fog = Util.exponentialFog(n / drawDistance, fogDensity);
         segment.clip = maxy;
 
-        Util.project(segment.p1, (playerX * roadWidth) - x + shakeX, playerY + cameraHeight + bounce + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-        Util.project(segment.p2, (playerX * roadWidth) - x - dx + shakeX, playerY + cameraHeight + bounce + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p1, (playerX * roadWidth) - x + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p2, (playerX * roadWidth) - x - dx + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
 
         x += dx;
         dx += segment.curve;
@@ -304,7 +313,7 @@ function render() {
             var sprite = car.sprite;
             var spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
             var spriteX = Util.interpolate(segment.p1.screen.x, segment.p2.screen.x, car.percent) + (spriteScale * car.offset * roadWidth * width / 2);
-            var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + shakeY * 0.5; // Reduced shake for NPC cars
+            var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + shakeY * 0.5;
             Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX + shakeX * 0.5, spriteY, -0.5, -1, segment.clip);
         }
 
@@ -322,7 +331,7 @@ function render() {
             Render.player(ctx, width, height, resolution, roadWidth, sprites, speed / maxSpeed,
                 cameraDepth / playerZ,
                 width / 2 + shakeX,
-                (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + bounce + shakeY,
+                (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + shakeY,
                 speed * (keyLeft ? -1 : keyRight ? 1 : 0),
                 playerSegment.p2.world.y - playerSegment.p1.world.y);
         }
