@@ -116,6 +116,12 @@
         var shakeAmount = 0;  // Intensity of the shake
         var shakeDecay = 0.9; // How quickly the shake decreases
 
+        var isRaining = false;
+        var rainDrops = [];
+        var rainTimer = 0;
+        var rainDuration = 5000; // Rain duration in milliseconds
+        var rainDropCount = 100; // Number of raindrops
+
         var keyLeft = false;
         var keyRight = false;
         var keyFaster = false;
@@ -163,226 +169,283 @@
             }, { once: true });
         });
 
-// Start Update  Function
+        // Start Rain Functions
 
+        function startRain() {
+            isRaining = true;
+            rainTimer = Util.randomInt(5000, 15000); // Rain for 5 to 15 seconds
+            rainDrops = [];
 
-function update(dt) {
-    var playerSegment = findSegment(position + playerZ);
-    var playerW = playerStraightSprite.width * SPRITES.SCALE;
-    var playerH = playerStraightSprite.height * SPRITES.SCALE;
-    var speedPercent = speed / maxSpeed;
-    var dx = dt * 2 * speedPercent;
-    var startPosition = position;
-    var bounce = 0;
-
-    // Dynamic camera adjustments
-    var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
-    var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
-
-    updateCars(dt, playerSegment, playerW);
-
-    position = Util.increase(position, dt * speed, trackLength);
-
-    if (keyLeft) playerX -= dx;
-    else if (keyRight) playerX += dx;
-
-    playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
-
-    if (keyFaster) speed = Util.accelerate(speed, accel, dt);
-    else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
-    else speed = Util.accelerate(speed, decel, dt);
-
-    // Check if the player is off-road
-    if ((playerX < -1) || (playerX > 1)) {
-        if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
-
-        // Add a bounce effect when the car is off-road
-        bounce = Math.sin(Date.now() / 100) * 10;
-
-        // Trigger screen shake when off-road
-        shakeAmount = Math.min(10, shakeAmount + 5);
-    }
-
-    // Collision detection with other cars
-    for (var n = 0; n < playerSegment.cars.length; n++) {
-        var car = playerSegment.cars[n];
-        var carW = car.sprite.width * SPRITES.SCALE;
-        var carH = car.sprite.height * SPRITES.SCALE;
-
-        var playerBoundingBox = {
-            left: playerX - playerW / 2,
-            right: playerX + playerW / 2,
-            top: playerZ,
-            bottom: playerZ + playerH
-        };
-
-        var carBoundingBox = {
-            left: car.offset - carW / 2,
-            right: car.offset + carW / 2,
-            top: car.z,
-            bottom: car.z + carH
-        };
-
-        // Check for bounding box overlap (collision)
-        if (speed > car.speed) {
-            if (playerBoundingBox.right > carBoundingBox.left &&
-                playerBoundingBox.left < carBoundingBox.right &&
-                playerBoundingBox.bottom > carBoundingBox.top &&
-                playerBoundingBox.top < carBoundingBox.bottom) {
-
-                // Handle collision response
-                speed = car.speed * (car.speed / speed);
-                position = Util.increase(car.z, -playerZ, trackLength);
-
-                // Trigger a stronger shake on collision, but smoother
-                shakeAmount = Math.min(15, shakeAmount + 7);
-                break;
+            for (var i = 0; i < rainDropCount; i++) {
+                rainDrops.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    speed: Math.random() * 5 + 5
+                });
             }
         }
-    }
 
-    playerX = Util.limit(playerX, -3, 3);
-    speed = Util.limit(speed, 0, maxSpeed);
+        function stopRain() {
+            isRaining = false;
+            rainDrops = []; // Clear raindrops
+            rainTimer = Util.randomInt(10000, 30000); // Wait 10 to 30 seconds before raining again
+        }
 
-    skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-    hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-    treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-
-    // Reduce shakeAmount over time for a smoother effect
-    shakeAmount *= shakeDecay;
-    if (shakeAmount < 0.5) shakeAmount = 0;
-
-    if (position > playerZ) {
-        if (currentLapTime && (startPosition < playerZ)) {
-            lastLapTime = currentLapTime;
-            lastLapCoins = hud.coin_count.value;
-            recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
-            hud.coin_count.value = 0;
-            currentLapTime = 0;
-            if (!firstLapComplete) {
-                firstLapComplete = true;
-            }
-            if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
-                localStorage.fast_lap_time = lastLapTime;
-                updateHud('fast_lap_time', formatTime(lastLapTime));
-                document.getElementById('fast_lap_time').classList.add('fastest');
-                document.getElementById('last_lap_time').classList.add('fastest');
+        function updateRain(dt) {
+            if (isRaining) {
+                for (var i = 0; i < rainDrops.length; i++) {
+                    rainDrops[i].y += rainDrops[i].speed * dt;
+                    if (rainDrops[i].y > height) {
+                        rainDrops[i].y = 0;
+                        rainDrops[i].x = Math.random() * width;
+                    }
+                }
+                rainTimer -= dt * 1000;
+                if (rainTimer <= 0) {
+                    stopRain();
+                }
             } else {
-                document.getElementById('fast_lap_time').classList.remove('fastest');
-                document.getElementById('last_lap_time').classList.remove('fastest');
+                rainTimer -= dt * 1000;
+                if (rainTimer <= 0) {
+                    startRain();
+                }
             }
-            updateHud('last_lap_time', formatTime(lastLapTime));
-            document.getElementById('last_lap_time').style.display = 'inline';
-        } else {
-            currentLapTime += dt;
-        }
-    }
-
-    updateHud('speed', 5 * Math.round(speed / 500));
-    updateHud('current_lap_time', formatTime(currentLapTime));
-
-    checkCoinCollection({ x: playerX, z: position + playerZ });
-
-    coinTimer += dt * 1000;
-    if (coinTimer >= coinDropInterval) {
-        dropCoins();
-        coinTimer = 0;
-        coinDropInterval = Util.randomInt(2000, 5000);
-    }
-
-    // Apply the dynamic camera changes
-    cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
-}
-
-
-
-
-// START RENDER FUNCTION
-
-function render() {
-    var baseSegment = findSegment(position);
-    var basePercent = Util.percentRemaining(position, segmentLength);
-    var playerSegment = findSegment(position + playerZ);
-    var playerPercent = Util.percentRemaining(position + playerZ, segmentLength);
-    var playerY = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent);
-    var maxy = height;
-
-    var x = 0;
-    var dx = -(baseSegment.curve * basePercent);
-
-    // Apply screen shake
-    var shakeX = (Math.random() * 2 - 1) * shakeAmount;
-    var shakeY = (Math.random() * 2 - 1) * shakeAmount;
-
-    ctx.clearRect(0, 0, width, height);
-
-    Render.background(ctx, backgroundSky, width, height, { w: backgroundSky.width, h: backgroundSky.height }, skyOffset + shakeX, resolution * skySpeed * playerY + shakeY);
-    Render.background(ctx, backgroundHills, width, height, { w: backgroundHills.width, h: backgroundHills.height }, hillOffset + shakeX, resolution * hillSpeed * playerY + shakeY);
-    Render.background(ctx, backgroundTrees, width, height, { w: backgroundTrees.width, h: backgroundTrees.height }, treeOffset + shakeX, resolution * treeSpeed * playerY + shakeY);
-
-    for (var n = 0; n < drawDistance; n++) {
-        var segment = segments[(baseSegment.index + n) % segments.length];
-        segment.looped = segment.index < baseSegment.index;
-        segment.fog = Util.exponentialFog(n / drawDistance, fogDensity);
-        segment.clip = maxy;
-
-        // Rotate the segment around the Y-axis for curves
-        Util.rotateY(segment.p1, baseSegment.curve);
-        Util.rotateY(segment.p2, baseSegment.curve);
-
-        // Rotate the segment around the X-axis for hills
-        Util.rotateX(segment.p1, -playerY / 1000);
-        Util.rotateX(segment.p2, -playerY / 1000);
-
-        // Project the 3D coordinates to 2D screen space
-        Util.project(segment.p1, (playerX * roadWidth) - x + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-        Util.project(segment.p2, (playerX * roadWidth) - x - dx + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-
-        x += dx;
-        dx += segment.curve;
-
-        if ((segment.p1.camera.z <= cameraDepth) || (segment.p2.screen.y >= segment.p1.screen.y) || (segment.p2.screen.y >= maxy))
-            continue;
-
-        Render.segment(ctx, width, lanes, segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.fog, segment.color);
-
-        maxy = segment.p1.screen.y;
-    }
-
-    for (var n = (drawDistance - 1); n > 0; n--) {
-        var segment = segments[(baseSegment.index + n) % segments.length];
-
-        // Render NPC cars with shake effect
-        for (var i = 0; i < segment.cars.length; i++) {
-            var car = segment.cars[i];
-            var sprite = car.sprite;
-            var spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
-            var spriteX = Util.interpolate(segment.p1.screen.x, segment.p2.screen.x, car.percent) + (spriteScale * car.offset * roadWidth * width / 2);
-            var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + shakeY * 0.5;
-            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX + shakeX * 0.5, spriteY, -0.5, -1, segment.clip);
         }
 
-        // Render roadside sprites
-        for (var i = 0; i < segment.sprites.length; i++) {
-            var sprite = segment.sprites[i];
-            var spriteScale = segment.p1.screen.scale;
-            var spriteX = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width / 2);
-            var spriteY = segment.p1.screen.y;
-            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+        function renderRain() {
+            if (!isRaining) return;
+
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Light blue with some transparency
+            for (var i = 0; i < rainDrops.length; i++) {
+                var drop = rainDrops[i];
+                ctx.beginPath();
+                ctx.moveTo(drop.x, drop.y);
+                ctx.lineTo(drop.x + 1, drop.y + 10); // Raindrop's length
+                ctx.stroke();
+            }
         }
 
-        // Render player car with the same shake effect
-        if (segment == playerSegment) {
-            Render.player(ctx, width, height, resolution, roadWidth, sprites, speed / maxSpeed,
-                cameraDepth / playerZ,
-                width / 2 + shakeX,
-                (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + shakeY,
-                speed * (keyLeft ? -1 : keyRight ? 1 : 0),
-                playerSegment.p2.world.y - playerSegment.p1.world.y);
-        }
-    }
-}
+        // Update Function
 
+        function update(dt) {
+            var playerSegment = findSegment(position + playerZ);
+            var playerW = playerStraightSprite.width * SPRITES.SCALE;
+            var playerH = playerStraightSprite.height * SPRITES.SCALE;
+            var speedPercent = speed / maxSpeed;
+            var dx = dt * 2 * speedPercent;
+            var startPosition = position;
+            var bounce = 0;
+
+            // Dynamic camera adjustments
+            var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
+            var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
+
+            updateCars(dt, playerSegment, playerW);
+
+            position = Util.increase(position, dt * speed, trackLength);
+
+            if (keyLeft) playerX -= dx;
+            else if (keyRight) playerX += dx;
+
+            playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
+
+            if (keyFaster) speed = Util.accelerate(speed, accel, dt);
+            else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
+            else speed = Util.accelerate(speed, decel, dt);
+
+            // Check if the player is off-road
+            if ((playerX < -1) || (playerX > 1)) {
+                if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
+
+                // Add a bounce effect when the car is off-road
+                bounce = Math.sin(Date.now() / 100) * 10;
+
+                // Trigger screen shake when off-road
+                shakeAmount = Math.min(10, shakeAmount + 5);
+            }
+
+            // Collision detection with other cars
+            for (var n = 0; n < playerSegment.cars.length; n++) {
+                var car = playerSegment.cars[n];
+                var carW = car.sprite.width * SPRITES.SCALE;
+                var carH = car.sprite.height * SPRITES.SCALE;
+
+                var playerBoundingBox = {
+                    left: playerX - playerW / 2,
+                    right: playerX + playerW / 2,
+                    top: playerZ,
+                    bottom: playerZ + playerH
+                };
+
+                var carBoundingBox = {
+                    left: car.offset - carW / 2,
+                    right: car.offset + carW / 2,
+                    top: car.z,
+                    bottom: car.z + carH
+                };
+
+                // Check for bounding box overlap (collision)
+                if (speed > car.speed) {
+                    if (playerBoundingBox.right > carBoundingBox.left &&
+                        playerBoundingBox.left < carBoundingBox.right &&
+                        playerBoundingBox.bottom > carBoundingBox.top &&
+                        playerBoundingBox.top < carBoundingBox.bottom) {
+
+                        // Handle collision response
+                        speed = car.speed * (car.speed / speed);
+                        position = Util.increase(car.z, -playerZ, trackLength);
+
+                        // Trigger a stronger shake on collision, but smoother
+                        shakeAmount = Math.min(15, shakeAmount + 7);
+                        break;
+                    }
+                }
+            }
+
+            playerX = Util.limit(playerX, -3, 3);
+            speed = Util.limit(speed, 0, maxSpeed);
+
+            skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+            hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+            treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+
+            // Reduce shakeAmount over time for a smoother effect
+            shakeAmount *= shakeDecay;
+            if (shakeAmount < 0.5) shakeAmount = 0;
+
+            if (position > playerZ) {
+                if (currentLapTime && (startPosition < playerZ)) {
+                    lastLapTime = currentLapTime;
+                    lastLapCoins = hud.coin_count.value;
+                    recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
+                    hud.coin_count.value = 0;
+                    currentLapTime = 0;
+                    if (!firstLapComplete) {
+                        firstLapComplete = true;
+                    }
+                    if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
+                        localStorage.fast_lap_time = lastLapTime;
+                        updateHud('fast_lap_time', formatTime(lastLapTime));
+                        document.getElementById('fast_lap_time').classList.add('fastest');
+                        document.getElementById('last_lap_time').classList.add('fastest');
+                    } else {
+                        document.getElementById('fast_lap_time').classList.remove('fastest');
+                        document.getElementById('last_lap_time').classList.remove('fastest');
+                    }
+                    updateHud('last_lap_time', formatTime(lastLapTime));
+                    document.getElementById('last_lap_time').style.display = 'inline';
+                } else {
+                    currentLapTime += dt;
+                }
+            }
+
+            updateHud('speed', 5 * Math.round(speed / 500));
+            updateHud('current_lap_time', formatTime(currentLapTime));
+
+            checkCoinCollection({ x: playerX, z: position + playerZ });
+
+            coinTimer += dt * 1000;
+            if (coinTimer >= coinDropInterval) {
+                dropCoins();
+                coinTimer = 0;
+                coinDropInterval = Util.randomInt(2000, 5000);
+            }
+
+            // Apply the dynamic camera changes
+            cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
+
+            // Update rain effect
+            updateRain(dt);
+        }
+
+        // Render Function
+
+        function render() {
+            var baseSegment = findSegment(position);
+            var basePercent = Util.percentRemaining(position, segmentLength);
+            var playerSegment = findSegment(position + playerZ);
+            var playerPercent = Util.percentRemaining(position + playerZ, segmentLength);
+            var playerY = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent);
+            var maxy = height;
+
+            var x = 0;
+            var dx = -(baseSegment.curve * basePercent);
+
+            // Apply screen shake
+            var shakeX = (Math.random() * 2 - 1) * shakeAmount;
+            var shakeY = (Math.random() * 2 - 1) * shakeAmount;
+
+            ctx.clearRect(0, 0, width, height);
+
+            Render.background(ctx, backgroundSky, width, height, { w: backgroundSky.width, h: backgroundSky.height }, skyOffset + shakeX, resolution * skySpeed * playerY + shakeY);
+            Render.background(ctx, backgroundHills, width, height, { w: backgroundHills.width, h: backgroundHills.height }, hillOffset + shakeX, resolution * hillSpeed * playerY + shakeY);
+            Render.background(ctx, backgroundTrees, width, height, { w: backgroundTrees.width, h: backgroundTrees.height }, treeOffset + shakeX, resolution * treeSpeed * playerY + shakeY);
+
+            for (var n = 0; n < drawDistance; n++) {
+                var segment = segments[(baseSegment.index + n) % segments.length];
+                segment.looped = segment.index < baseSegment.index;
+                segment.fog = Util.exponentialFog(n / drawDistance, fogDensity);
+                segment.clip = maxy;
+
+                // Rotate the segment around the Y-axis for curves
+                Util.rotateY(segment.p1, baseSegment.curve);
+                Util.rotateY(segment.p2, baseSegment.curve);
+
+                // Rotate the segment around the X-axis for hills
+                Util.rotateX(segment.p1, -playerY / 1000);
+                Util.rotateX(segment.p2, -playerY / 1000);
+
+                // Project the 3D coordinates to 2D screen space
+                Util.project(segment.p1, (playerX * roadWidth) - x + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+                Util.project(segment.p2, (playerX * roadWidth) - x - dx + shakeX, playerY + cameraHeight + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+
+                x += dx;
+                dx += segment.curve;
+
+                if ((segment.p1.camera.z <= cameraDepth) || (segment.p2.screen.y >= segment.p1.screen.y) || (segment.p2.screen.y >= maxy))
+                    continue;
+
+                Render.segment(ctx, width, lanes, segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.fog, segment.color);
+
+                maxy = segment.p1.screen.y;
+            }
+
+            for (var n = (drawDistance - 1); n > 0; n--) {
+                var segment = segments[(baseSegment.index + n) % segments.length];
+
+                // Render NPC cars with shake effect
+                for (var i = 0; i < segment.cars.length; i++) {
+                    var car = segment.cars[i];
+                    var sprite = car.sprite;
+                    var spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
+                    var spriteX = Util.interpolate(segment.p1.screen.x, segment.p2.screen.x, car.percent) + (spriteScale * car.offset * roadWidth * width / 2);
+                    var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + shakeY * 0.5;
+                    Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX + shakeX * 0.5, spriteY, -0.5, -1, segment.clip);
+                }
+
+                // Render roadside sprites
+                for (var i = 0; i < segment.sprites.length; i++) {
+                    var sprite = segment.sprites[i];
+                    var spriteScale = segment.p1.screen.scale;
+                    var spriteX = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width / 2);
+                    var spriteY = segment.p1.screen.y;
+                    Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+                }
+
+                // Render player car with the same shake effect
+                if (segment == playerSegment) {
+                    Render.player(ctx, width, height, resolution, roadWidth, sprites, speed / maxSpeed,
+                        cameraDepth / playerZ,
+                        width / 2 + shakeX,
+                        (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + shakeY,
+                        speed * (keyLeft ? -1 : keyRight ? 1 : 0),
+                        playerSegment.p2.world.y - playerSegment.p1.world.y);
+                }
+            }
+
+            // Render the rain effect over the scene
+            renderRain();
+        }
 
 
 
@@ -453,13 +516,12 @@ function checkCoinCollection(playerPosition) {
             // Animate the coin to the header (if you have such an animation)
             animateCoinToHeader(coins[i]);
 
-            // console.log("Coin collected at z:", coins[i].z, "and lane:", coins[i].offset);
+            // Remove collected coin from the array
+            coins = coins.filter(c => !c.collected);
+
             break; // Exit the loop after collecting a coin
         }
     }
-
-    // Remove collected coins from the array
-    coins = coins.filter(c => !c.collected);
 
     // Remove associated DOM elements if any exist
     document.querySelectorAll('.coin-animation').forEach(element => {
@@ -468,6 +530,7 @@ function checkCoinCollection(playerPosition) {
         }
     });
 }
+
 
 
 
@@ -486,37 +549,44 @@ function checkCoinCollection(playerPosition) {
             });
         }
 
-        function animateCoinToHeader(coin) {
-            var coinElement = document.createElement('div');
-            coinElement.classList.add('coin-animation');
-            document.body.appendChild(coinElement);
+function animateCoinToHeader(coin) {
+    var coinElement = document.createElement('div');
+    coinElement.classList.add('coin-animation');
+    document.body.appendChild(coinElement);
 
-            var coinSegment = findSegment(coin.z);
-            var coinScale = Util.interpolate(coinSegment.p1.screen.scale, coinSegment.p2.screen.scale, Util.percentRemaining(coin.z, segmentLength)) * 0.07;
-            var coinX = Util.interpolate(coinSegment.p1.screen.x, coinSegment.p2.screen.x, Util.percentRemaining(coin.z, segmentLength)) + (coinScale * coin.offset * roadWidth * width / 2);
-            var coinY = Util.interpolate(coinSegment.p1.screen.y, coinSegment.p2.screen.y, Util.percentRemaining(coin.z, segmentLength));
+    var coinSegment = findSegment(coin.z);
+    var coinScale = Util.interpolate(coinSegment.p1.screen.scale, coinSegment.p2.screen.scale, Util.percentRemaining(coin.z, segmentLength)) * 0.07;
+    var coinX = Util.interpolate(coinSegment.p1.screen.x, coinSegment.p2.screen.x, Util.percentRemaining(coin.z, segmentLength)) + (coinScale * coin.offset * roadWidth * width / 2);
+    var coinY = Util.interpolate(coinSegment.p1.screen.y, coinSegment.p2.screen.y, Util.percentRemaining(coin.z, segmentLength));
 
-            var canvasRect = canvas.getBoundingClientRect();
+    var canvasRect = canvas.getBoundingClientRect();
 
-            coinElement.style.left = (canvasRect.left + coinX) + 'px';
-            coinElement.style.top = (canvasRect.top + coinY) + 'px';
+    coinElement.style.left = (canvasRect.left + coinX) + 'px';
+    coinElement.style.top = (canvasRect.top + coinY) + 'px';
 
-            var coinCounter = document.getElementById('coin_count_value');
-            var counterRect = coinCounter.getBoundingClientRect();
+    var coinCounter = document.getElementById('coin_count_value');
+    var counterRect = coinCounter.getBoundingClientRect();
 
-            coinElement.animate([
-                { transform: `translate(${canvasRect.left + coinX}px, ${canvasRect.top + coinY}px)` },
-                { transform: `translate(${counterRect.left}px, ${counterRect.top}px)` }
-            ], {
-                duration: 1000,
-                easing: 'ease-in-out',
-                fill: 'forwards'
-            });
+    // Apply animation
+    coinElement.animate([
+        { transform: `translate(${canvasRect.left + coinX}px, ${canvasRect.top + coinY}px)` },
+        { transform: `translate(${counterRect.left}px, ${counterRect.top}px)` }
+    ], {
+        duration: 1000,
+        easing: 'ease-in-out',
+        fill: 'forwards'
+    });
 
-            setTimeout(() => {
-                coinElement.remove();
-            }, 1000);
-        }
+    // Transition opacity to 0
+    coinElement.style.transition = "opacity 1s ease";
+    coinElement.style.opacity = "0";
+
+    // Remove the element after the animation ends
+    setTimeout(() => {
+        coinElement.remove();
+    }, 1000);
+}
+
 
         function updateCars(dt, playerSegment, playerW) {
             for (var n = 0; n < cars.length; n++) {
