@@ -100,6 +100,10 @@
         var lastLapTime = null;
         var lastLapCoins = 0;
 
+        var shakeAmount = 0;  // Intensity of the shake
+        var shakeDecay = 0.9; // How quickly the shake decreases
+
+
         var keyLeft = false;
         var keyRight = false;
         var keyFaster = false;
@@ -147,6 +151,9 @@
             }, { once: true });
         });
 
+// Start Update  Function
+
+
 function update(dt) {
     var playerSegment = findSegment(position + playerZ);
     var playerW = playerStraightSprite.width * SPRITES.SCALE;
@@ -168,27 +175,18 @@ function update(dt) {
     else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
     else speed = Util.accelerate(speed, decel, dt);
 
-    // Add bounce effect when off-road
+    // Check if the player is off-road
     if ((playerX < -1) || (playerX > 1)) {
         if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
 
-        // Simple sine wave bounce effect based on speed
-        bounce = Math.sin(Date.now() / 100) * 5; // Adjust the multiplier for higher/lower bounce
+        // Add a bounce effect when the car is off-road
+        bounce = Math.sin(Date.now() / 100) * 10; // Increase multiplier for more noticeable bounce
 
-        // Separate logic for static sprites (like trees)
-        for (var n = 0; n < playerSegment.sprites.length; n++) {
-            var sprite = playerSegment.sprites[n];
-            var spriteW = sprite.source.width * SPRITES.SCALE;
-            if (Util.overlap(playerX, playerW, sprite.offset + spriteW / 2 * (sprite.offset > 0 ? 1 : -1), spriteW)) {
-                if (sprite.source !== palmTreeSprite) { // Exclude palm trees from collision effects
-                    speed = maxSpeed / 5;
-                    position = Util.increase(playerSegment.p1.world.z, -playerZ, trackLength);
-                    break;
-                }
-            }
-        }
+        // Trigger screen shake when off-road
+        shakeAmount = Math.min(10, shakeAmount + 5); // Increase the shake intensity
     }
 
+    // Collision detection with other cars
     for (var n = 0; n < playerSegment.cars.length; n++) {
         var car = playerSegment.cars[n];
         var carW = car.sprite.width * SPRITES.SCALE;
@@ -196,6 +194,9 @@ function update(dt) {
             if (Util.overlap(playerX, playerW, car.offset, carW, 0.8)) {
                 speed = car.speed * (car.speed / speed);
                 position = Util.increase(car.z, -playerZ, trackLength);
+
+                // Trigger a stronger shake on collision, but smoother
+                shakeAmount = Math.min(15, shakeAmount + 7); // Smoother and less intense for NPC cars
                 break;
             }
         }
@@ -208,11 +209,15 @@ function update(dt) {
     hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
     treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
 
+    // Reduce shakeAmount over time for a smoother effect
+    shakeAmount *= shakeDecay;
+    if (shakeAmount < 0.5) shakeAmount = 0;
+
     if (position > playerZ) {
         if (currentLapTime && (startPosition < playerZ)) {
             lastLapTime = currentLapTime;
             lastLapCoins = hud.coin_count.value;
-            recordRaceRound(tgName, tgID,hud.coin_count.value,parseInt(lastLapTime));
+            recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
             hud.coin_count.value = 0;
             currentLapTime = 0;
             if (!firstLapComplete) {
@@ -247,6 +252,8 @@ function update(dt) {
     }
 }
 
+// Start Render Function
+
 function render() {
     var baseSegment = findSegment(position);
     var basePercent = Util.percentRemaining(position, segmentLength);
@@ -258,11 +265,15 @@ function render() {
     var x = 0;
     var dx = -(baseSegment.curve * basePercent);
 
+    // Apply screen shake
+    var shakeX = (Math.random() * 2 - 1) * shakeAmount;
+    var shakeY = (Math.random() * 2 - 1) * shakeAmount;
+
     ctx.clearRect(0, 0, width, height);
 
-    Render.background(ctx, backgroundSky, width, height, { w: backgroundSky.width, h: backgroundSky.height }, skyOffset, resolution * skySpeed * playerY);
-    Render.background(ctx, backgroundHills, width, height, { w: backgroundHills.width, h: backgroundHills.height }, hillOffset, resolution * hillSpeed * playerY);
-    Render.background(ctx, backgroundTrees, width, height, { w: backgroundTrees.width, h: backgroundTrees.height }, treeOffset, resolution * treeSpeed * playerY);
+    Render.background(ctx, backgroundSky, width, height, { w: backgroundSky.width, h: backgroundSky.height }, skyOffset + shakeX, resolution * skySpeed * playerY + shakeY);
+    Render.background(ctx, backgroundHills, width, height, { w: backgroundHills.width, h: backgroundHills.height }, hillOffset + shakeX, resolution * hillSpeed * playerY + shakeY);
+    Render.background(ctx, backgroundTrees, width, height, { w: backgroundTrees.width, h: backgroundTrees.height }, treeOffset + shakeX, resolution * treeSpeed * playerY + shakeY);
 
     for (var n = 0; n < drawDistance; n++) {
         var segment = segments[(baseSegment.index + n) % segments.length];
@@ -270,8 +281,8 @@ function render() {
         segment.fog = Util.exponentialFog(n / drawDistance, fogDensity);
         segment.clip = maxy;
 
-        Util.project(segment.p1, (playerX * roadWidth) - x, playerY + cameraHeight + bounce, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-        Util.project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight + bounce, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p1, (playerX * roadWidth) - x + shakeX, playerY + cameraHeight + bounce + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p2, (playerX * roadWidth) - x - dx + shakeX, playerY + cameraHeight + bounce + shakeY, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
 
         x += dx;
         dx += segment.curve;
@@ -284,30 +295,20 @@ function render() {
         maxy = segment.p1.screen.y;
     }
 
-    // Render coins (remaining code unchanged)
-    for (var i = 0; i < coins.length; i++) {
-        if (!coins[i].collected) {
-            var coinSegment = findSegment(coins[i].z);
-            var coinScale = Util.interpolate(coinSegment.p1.screen.scale, coinSegment.p2.screen.scale, Util.percentRemaining(coins[i].z, segmentLength)) * 0.03;
-            var coinX = Util.interpolate(coinSegment.p1.screen.x, coinSegment.p2.screen.x, Util.percentRemaining(coins[i].z, segmentLength)) + (coinScale * coins[i].offset * roadWidth * width / 2);
-            var coinY = Util.interpolate(coinSegment.p1.screen.y, coinSegment.p2.screen.y, Util.percentRemaining(coins[i].z, segmentLength));
-
-            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, coinSprite, coinScale, coinX, coinY, -0.5, -1, coinSegment.clip);
-        }
-    }
-
     for (var n = (drawDistance - 1); n > 0; n--) {
         var segment = segments[(baseSegment.index + n) % segments.length];
 
+        // Render NPC cars with shake effect
         for (var i = 0; i < segment.cars.length; i++) {
             var car = segment.cars[i];
             var sprite = car.sprite;
             var spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
             var spriteX = Util.interpolate(segment.p1.screen.x, segment.p2.screen.x, car.percent) + (spriteScale * car.offset * roadWidth * width / 2);
-            var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + bounce; // Add bounce to cars
-            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX, spriteY, -0.5, -1, segment.clip);
+            var spriteY = Util.interpolate(segment.p1.screen.y, segment.p2.screen.y, car.percent) + shakeY * 0.5; // Reduced shake for NPC cars
+            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX + shakeX * 0.5, spriteY, -0.5, -1, segment.clip);
         }
 
+        // Render roadside sprites
         for (var i = 0; i < segment.sprites.length; i++) {
             var sprite = segment.sprites[i];
             var spriteScale = segment.p1.screen.scale;
@@ -316,16 +317,19 @@ function render() {
             Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
         }
 
+        // Render player car with the same shake effect
         if (segment == playerSegment) {
             Render.player(ctx, width, height, resolution, roadWidth, sprites, speed / maxSpeed,
                 cameraDepth / playerZ,
-                width / 2,
-                (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + bounce, // Add bounce to the player sprite
+                width / 2 + shakeX,
+                (height / 2) - (cameraDepth / playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height / 2) + bounce + shakeY,
                 speed * (keyLeft ? -1 : keyRight ? 1 : 0),
                 playerSegment.p2.world.y - playerSegment.p1.world.y);
         }
     }
 }
+
+
 
 
     playerX = Util.limit(playerX, -3, 3);
