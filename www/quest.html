@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 
@@ -72,6 +71,20 @@
         var cars = [];
         var canvas = document.getElementById('canvas');
         var ctx = canvas.getContext('2d');
+
+        // Supersampling factor for higher resolution rendering
+        var SUPERSAMPLING_FACTOR = 2;
+
+        // Adjust the canvas size for supersampling
+        canvas.width = window.innerWidth * SUPERSAMPLING_FACTOR;
+        canvas.height = window.innerHeight * SUPERSAMPLING_FACTOR;
+
+        // Scale down the rendering context to actual display size
+        ctx.scale(1 / SUPERSAMPLING_FACTOR, 1 / SUPERSAMPLING_FACTOR);
+
+        // Enable anti-aliasing (optional, generally enabled by default)
+        ctx.imageSmoothingEnabled = true;
+
         var background = null;
         var sprites = null;
         var resolution = null;
@@ -102,7 +115,6 @@
 
         var shakeAmount = 0;  // Intensity of the shake
         var shakeDecay = 0.9; // How quickly the shake decreases
-
 
         var keyLeft = false;
         var keyRight = false;
