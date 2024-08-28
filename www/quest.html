@@ -239,196 +239,193 @@
             }
         }
 
-function renderRain() {
-    if (!isRaining) return;
+        function renderRain() {
+            if (!isRaining) return;
 
-    ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Light blue with some transparency
-    ctx.lineWidth = 2;
-    for (var i = 0; i < rainDrops.length; i++) {
-        var drop = rainDrops[i];
-        ctx.beginPath();
-        ctx.moveTo(drop.x, drop.y);
-        ctx.lineTo(drop.x + 1, drop.y + 10); // Raindrop's length
-        ctx.strokeStyle = 'rgba(173, 216, 230, 0.7)';
-        ctx.stroke();
-    }
-}
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Light blue with some transparency
+            for (var i = 0; i < rainDrops.length; i++) {
+                var drop = rainDrops[i];
+                ctx.beginPath();
+                ctx.moveTo(drop.x, drop.y);
+                ctx.lineTo(drop.x + 1, drop.y + 10); // Raindrop's length
+                ctx.stroke();
+            }
+        }
 
         // Update Day/Night Cycle Function
-function updateDayNightCycle(dt) {
-    dayCycleElapsed += dt * 1000; // Convert dt from seconds to milliseconds
+        function updateDayNightCycle(dt) {
+            dayCycleElapsed += dt * 1000; // Convert dt from seconds to milliseconds
 
-    // Calculate the current time in the cycle
-    var cycleTime = dayCycleElapsed % dayCycleDuration;
+            // Calculate the current time in the cycle
+            var cycleTime = dayCycleElapsed % dayCycleDuration;
 
-    // Determine if it is day or night based on the cycle time
-    if (cycleTime < dayCycleDuration / 2) {
-        isDayTime = true;
-    } else {
-        isDayTime = false;
-    }
+            // Determine if it is day or night based on the cycle time
+            if (cycleTime < dayCycleDuration / 2) {
+                isDayTime = true;
+            } else {
+                isDayTime = false;
+            }
 
-    // Calculate the brightness based on the current time in the cycle
-    var brightness;
-    if (isDayTime) {
-        if (cycleTime < dayNightTransitionDuration) {
-            // Morning transition
-            brightness = minBrightness + (maxBrightness - minBrightness) * (cycleTime / dayNightTransitionDuration);
-        } else {
-            // Full day brightness
-            brightness = maxBrightness;
+            // Calculate the brightness based on the current time in the cycle
+            var brightness;
+            if (isDayTime) {
+                if (cycleTime < dayNightTransitionDuration) {
+                    // Morning transition
+                    brightness = minBrightness + (maxBrightness - minBrightness) * (cycleTime / dayNightTransitionDuration);
+                } else {
+                    // Full day brightness
+                    brightness = maxBrightness;
+                }
+            } else {
+                if (cycleTime > dayCycleDuration - dayNightTransitionDuration) {
+                    // Evening transition
+                    brightness = maxBrightness - (maxBrightness - minBrightness) * ((cycleTime - (dayCycleDuration - dayNightTransitionDuration)) / dayNightTransitionDuration);
+                } else {
+                    // Full night darkness
+                    brightness = minBrightness;
+                }
+            }
+
+            // Apply brightness to the canvas
+            ctx.filter = `brightness(${brightness})`;
         }
-    } else {
-        if (cycleTime > dayCycleDuration - dayNightTransitionDuration) {
-            // Evening transition
-            brightness = maxBrightness - (maxBrightness - minBrightness) * ((cycleTime - (dayCycleDuration - dayNightTransitionDuration)) / dayNightTransitionDuration);
-        } else {
-            // Full night darkness
-            brightness = minBrightness;
-        }
-    }
-
-    // Apply brightness to the canvas
-    ctx.filter = `brightness(${brightness})`;
-}
-
 
         // Update Function
 
-function update(dt) {
-    updateDayNightCycle(dt); // Update the day/night cycle
-    updateRain(dt); // Update the rain effect
+        function update(dt) {
+            updateDayNightCycle(dt); // Update the day/night cycle
+            var playerSegment = findSegment(position + playerZ);
+            var playerW = playerStraightSprite.width * SPRITES.SCALE;
+            var playerH = playerStraightSprite.height * SPRITES.SCALE;
+            var speedPercent = speed / maxSpeed;
+            var dx = dt * 2 * speedPercent;
+            var startPosition = position;
+            var bounce = 0;
 
-    var playerSegment = findSegment(position + playerZ);
-    var playerW = playerStraightSprite.width * SPRITES.SCALE;
-    var playerH = playerStraightSprite.height * SPRITES.SCALE;
-    var speedPercent = speed / maxSpeed;
-    var dx = dt * 2 * speedPercent;
-    var startPosition = position;
-    var bounce = 0;
+            // Dynamic camera adjustments
+            var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
+            var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
 
-    // Dynamic camera adjustments
-    var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
-    var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
+            updateCars(dt, playerSegment, playerW);
 
-    updateCars(dt, playerSegment, playerW);
+            position = Util.increase(position, dt * speed, trackLength);
 
-    position = Util.increase(position, dt * speed, trackLength);
+            if (keyLeft) playerX -= dx;
+            else if (keyRight) playerX += dx;
 
-    if (keyLeft) playerX -= dx;
-    else if (keyRight) playerX += dx;
+            playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
 
-    playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
+            if (keyFaster) speed = Util.accelerate(speed, accel, dt);
+            else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
+            else speed = Util.accelerate(speed, decel, dt);
 
-    if (keyFaster) speed = Util.accelerate(speed, accel, dt);
-    else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
-    else speed = Util.accelerate(speed, decel, dt);
+            // Check if the player is off-road
+            if ((playerX < -1) || (playerX > 1)) {
+                if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
 
-    // Check if the player is off-road
-    if ((playerX < -1) || (playerX > 1)) {
-        if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
+                // Add a bounce effect when the car is off-road
+                bounce = Math.sin(Date.now() / 100) * 10;
 
-        // Add a bounce effect when the car is off-road
-        bounce = Math.sin(Date.now() / 100) * 10;
-
-        // Trigger screen shake when off-road
-        shakeAmount = Math.min(10, shakeAmount + 5);
-    }
-
-    // Collision detection with other cars
-    for (var n = 0; n < playerSegment.cars.length; n++) {
-        var car = playerSegment.cars[n];
-        var carW = car.sprite.width * SPRITES.SCALE;
-        var carH = car.sprite.height * SPRITES.SCALE;
-
-        var playerBoundingBox = {
-            left: playerX - playerW / 2,
-            right: playerX + playerW / 2,
-            top: playerZ,
-            bottom: playerZ + playerH
-        };
-
-        var carBoundingBox = {
-            left: car.offset - carW / 2,
-            right: car.offset + carW / 2,
-            top: car.z,
-            bottom: car.z + carH
-        };
-
-        // Check for bounding box overlap (collision)
-        if (speed > car.speed) {
-            if (playerBoundingBox.right > carBoundingBox.left &&
-                playerBoundingBox.left < carBoundingBox.right &&
-                playerBoundingBox.bottom > carBoundingBox.top &&
-                playerBoundingBox.top < carBoundingBox.bottom) {
-
-                // Handle collision response
-                speed = car.speed * (car.speed / speed);
-                position = Util.increase(car.z, -playerZ, trackLength);
-
-                // Trigger a stronger shake on collision, but smoother
-                shakeAmount = Math.min(15, shakeAmount + 7);
-                break;
+                // Trigger screen shake when off-road
+                shakeAmount = Math.min(10, shakeAmount + 5);
             }
+
+            // Collision detection with other cars
+            for (var n = 0; n < playerSegment.cars.length; n++) {
+                var car = playerSegment.cars[n];
+                var carW = car.sprite.width * SPRITES.SCALE;
+                var carH = car.sprite.height * SPRITES.SCALE;
+
+                var playerBoundingBox = {
+                    left: playerX - playerW / 2,
+                    right: playerX + playerW / 2,
+                    top: playerZ,
+                    bottom: playerZ + playerH
+                };
+
+                var carBoundingBox = {
+                    left: car.offset - carW / 2,
+                    right: car.offset + carW / 2,
+                    top: car.z,
+                    bottom: car.z + carH
+                };
+
+                // Check for bounding box overlap (collision)
+                if (speed > car.speed) {
+                    if (playerBoundingBox.right > carBoundingBox.left &&
+                        playerBoundingBox.left < carBoundingBox.right &&
+                        playerBoundingBox.bottom > carBoundingBox.top &&
+                        playerBoundingBox.top < carBoundingBox.bottom) {
+
+                        // Handle collision response
+                        speed = car.speed * (car.speed / speed);
+                        position = Util.increase(car.z, -playerZ, trackLength);
+
+                        // Trigger a stronger shake on collision, but smoother
+                        shakeAmount = Math.min(15, shakeAmount + 7);
+                        break;
+                    }
+                }
+            }
+
+            playerX = Util.limit(playerX, -3, 3);
+            speed = Util.limit(speed, 0, maxSpeed);
+
+            skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+            hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+            treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+
+            // Reduce shakeAmount over time for a smoother effect
+            shakeAmount *= shakeDecay;
+            if (shakeAmount < 0.5) shakeAmount = 0;
+
+            if (position > playerZ) {
+                if (currentLapTime && (startPosition < playerZ)) {
+                    lastLapTime = currentLapTime;
+                    lastLapCoins = hud.coin_count.value;
+                    recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
+                    hud.coin_count.value = 0;
+                    currentLapTime = 0;
+                    if (!firstLapComplete) {
+                        firstLapComplete = true;
+                    }
+                    if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
+                        localStorage.fast_lap_time = lastLapTime;
+                        updateHud('fast_lap_time', formatTime(lastLapTime));
+                        document.getElementById('fast_lap_time').classList.add('fastest');
+                        document.getElementById('last_lap_time').classList.add('fastest');
+                    } else {
+                        document.getElementById('fast_lap_time').classList.remove('fastest');
+                        document.getElementById('last_lap_time').classList.remove('fastest');
+                    }
+                    updateHud('last_lap_time', formatTime(lastLapTime));
+                    document.getElementById('last_lap_time').style.display = 'inline';
+                } else {
+                    currentLapTime += dt;
+                }
+            }
+
+            updateHud('speed', 5 * Math.round(speed / 500));
+            updateHud('current_lap_time', formatTime(currentLapTime));
+
+            checkCoinCollection({
+                x: playerX,
+                z: position + playerZ
+            });
+
+            coinTimer += dt * 1000;
+            if (coinTimer >= coinDropInterval) {
+                dropCoins();
+                coinTimer = 0;
+                coinDropInterval = Util.randomInt(2000, 5000);
+            }
+
+            // Apply the dynamic camera changes
+            cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
+
+            // Update rain effect
+            updateRain(dt);
         }
-    }
-
-    playerX = Util.limit(playerX, -3, 3);
-    speed = Util.limit(speed, 0, maxSpeed);
-
-    skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-    hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-    treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-
-    // Reduce shakeAmount over time for a smoother effect
-    shakeAmount *= shakeDecay;
-    if (shakeAmount < 0.5) shakeAmount = 0;
-
-    if (position > playerZ) {
-        if (currentLapTime && (startPosition < playerZ)) {
-            lastLapTime = currentLapTime;
-            lastLapCoins = hud.coin_count.value;
-            recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
-            hud.coin_count.value = 0;
-            currentLapTime = 0;
-            if (!firstLapComplete) {
-                firstLapComplete = true;
-            }
-            if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
-                localStorage.fast_lap_time = lastLapTime;
-                updateHud('fast_lap_time', formatTime(lastLapTime));
-                document.getElementById('fast_lap_time').classList.add('fastest');
-                document.getElementById('last_lap_time').classList.add('fastest');
-            } else {
-                document.getElementById('fast_lap_time').classList.remove('fastest');
-                document.getElementById('last_lap_time').classList.remove('fastest');
-            }
-            updateHud('last_lap_time', formatTime(lastLapTime));
-            document.getElementById('last_lap_time').style.display = 'inline';
-        } else {
-            currentLapTime += dt;
-        }
-    }
-
-    updateHud('speed', 5 * Math.round(speed / 500));
-    updateHud('current_lap_time', formatTime(currentLapTime));
-
-    checkCoinCollection({
-        x: playerX,
-        z: position + playerZ
-    });
-
-    coinTimer += dt * 1000;
-    if (coinTimer >= coinDropInterval) {
-        dropCoins();
-        coinTimer = 0;
-        coinDropInterval = Util.randomInt(2000, 5000);
-    }
-
-    // Apply the dynamic camera changes
-    cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
-}
-
 
         // Render Function
 
@@ -729,7 +726,15 @@ function update(dt) {
                     offset: offset,
                     z: z,
                     sprite: sprite,
-                    speed: speed
+                    speed: speed,
+                    ai: {
+                        targetSpeed: speed,
+                        targetOffset: offset,
+                        lane: Math.random() < 0.5 ? -1 : 1,
+                        aggression: Math.random() * 0.1 + 0.05,
+                        patience: Math.random() * 0.3 + 0.1,
+                        reactionTime: Math.random() * 0.2 + 0.1
+                    }
                 };
                 var segment = findSegment(car.z);
                 segment.cars.push(car);
@@ -760,6 +765,44 @@ function update(dt) {
                     z: zPosition,
                     collected: false
                 });
+            }
+        }
+
+        // Improved AI for Car Steering and Braking
+
+        function updateCars(dt, playerSegment, playerW) {
+            for (var n = 0; n < cars.length; n++) {
+                var car = cars[n];
+                var oldSegment = findSegment(car.z);
+                car.z = Util.increase(car.z, dt * car.speed, trackLength);
+
+                var newSegment = findSegment(car.z);
+                if (oldSegment != newSegment) {
+                    oldSegment.cars.splice(oldSegment.cars.indexOf(car), 1);
+                    newSegment.cars.push(car);
+                }
+
+                var speedFactor = car.speed / maxSpeed;
+                var steer = car.ai.lane * car.ai.aggression * dt * speedFactor;
+                var targetLane = playerX - car.offset > 0 ? -1 : 1;
+
+                if (playerSegment == newSegment && Math.abs(playerX - car.offset) < 1) {
+                    car.ai.lane = -targetLane;
+                    car.speed = Math.max(car.speed - car.ai.aggression * 2 * dt, maxSpeed / 3);
+                } else {
+                    car.ai.lane = targetLane;
+                    car.speed = Math.min(car.speed + car.ai.aggression * dt, car.ai.targetSpeed);
+                }
+
+                if (car.speed < maxSpeed) {
+                    car.speed = Util.accelerate(car.speed, accel * (1 + car.ai.patience), dt);
+                }
+
+                if ((car.offset < -1 && car.ai.lane < 0) || (car.offset > 1 && car.ai.lane > 0)) {
+                    car.ai.lane = -car.ai.lane;
+                }
+
+                car.offset = Util.limit(car.offset + steer, -2, 2);
             }
         }
 
