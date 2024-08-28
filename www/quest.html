@@ -113,7 +113,7 @@
         var lastLapTime = null;
         var lastLapCoins = 0;
 
-        var shakeAmount = 0;  // Intensity of the shake
+        var shakeAmount = 0; // Intensity of the shake
         var shakeDecay = 0.9; // How quickly the shake decreases
 
         var isRaining = false;
@@ -137,16 +137,39 @@
         var coinSprite;
 
         var hud = {
-            speed: { value: null, dom: document.getElementById('speed_value') },
-            current_lap_time: { value: null, dom: document.getElementById('current_lap_time_value') },
-            last_lap_time: { value: null, dom: document.getElementById('last_lap_time_value') },
-            fast_lap_time: { value: null, dom: document.getElementById('fast_lap_time_value') },
-            coin_count: { value: 0, dom: document.getElementById('coin_count_value') }
+            speed: {
+                value: null,
+                dom: document.getElementById('speed_value')
+            },
+            current_lap_time: {
+                value: null,
+                dom: document.getElementById('current_lap_time_value')
+            },
+            last_lap_time: {
+                value: null,
+                dom: document.getElementById('last_lap_time_value')
+            },
+            fast_lap_time: {
+                value: null,
+                dom: document.getElementById('fast_lap_time_value')
+            },
+            coin_count: {
+                value: 0,
+                dom: document.getElementById('coin_count_value')
+            }
         };
 
         var coins = [];
         var coinTimer = 0;
         var coinDropInterval = 3000;
+
+        // Day/Night Cycle Variables
+        var dayCycleDuration = 60000; // 60 seconds for a full day/night cycle
+        var dayCycleElapsed = 0;
+        var isDayTime = true;
+        var dayNightTransitionDuration = 5000; // 5 seconds for transitions
+        var maxBrightness = 1.0; // Full brightness during the day
+        var minBrightness = 0.4; // Minimum brightness at night
 
         document.addEventListener("DOMContentLoaded", function() {
             var music = document.getElementById('music');
@@ -162,11 +185,15 @@
 
             document.body.addEventListener('click', function() {
                 startMusic();
-            }, { once: true });
+            }, {
+                once: true
+            });
 
             document.body.addEventListener('keydown', function() {
                 startMusic();
-            }, { once: true });
+            }, {
+                once: true
+            });
         });
 
         // Start Rain Functions
@@ -212,151 +239,196 @@
             }
         }
 
-        function renderRain() {
-            if (!isRaining) return;
+function renderRain() {
+    if (!isRaining) return;
 
-            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Light blue with some transparency
-            for (var i = 0; i < rainDrops.length; i++) {
-                var drop = rainDrops[i];
-                ctx.beginPath();
-                ctx.moveTo(drop.x, drop.y);
-                ctx.lineTo(drop.x + 1, drop.y + 10); // Raindrop's length
-                ctx.stroke();
-            }
+    ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Light blue with some transparency
+    ctx.lineWidth = 2;
+    for (var i = 0; i < rainDrops.length; i++) {
+        var drop = rainDrops[i];
+        ctx.beginPath();
+        ctx.moveTo(drop.x, drop.y);
+        ctx.lineTo(drop.x + 1, drop.y + 10); // Raindrop's length
+        ctx.strokeStyle = 'rgba(173, 216, 230, 0.7)';
+        ctx.stroke();
+    }
+}
+
+        // Update Day/Night Cycle Function
+function updateDayNightCycle(dt) {
+    dayCycleElapsed += dt * 1000; // Convert dt from seconds to milliseconds
+
+    // Calculate the current time in the cycle
+    var cycleTime = dayCycleElapsed % dayCycleDuration;
+
+    // Determine if it is day or night based on the cycle time
+    if (cycleTime < dayCycleDuration / 2) {
+        isDayTime = true;
+    } else {
+        isDayTime = false;
+    }
+
+    // Calculate the brightness based on the current time in the cycle
+    var brightness;
+    if (isDayTime) {
+        if (cycleTime < dayNightTransitionDuration) {
+            // Morning transition
+            brightness = minBrightness + (maxBrightness - minBrightness) * (cycleTime / dayNightTransitionDuration);
+        } else {
+            // Full day brightness
+            brightness = maxBrightness;
         }
+    } else {
+        if (cycleTime > dayCycleDuration - dayNightTransitionDuration) {
+            // Evening transition
+            brightness = maxBrightness - (maxBrightness - minBrightness) * ((cycleTime - (dayCycleDuration - dayNightTransitionDuration)) / dayNightTransitionDuration);
+        } else {
+            // Full night darkness
+            brightness = minBrightness;
+        }
+    }
+
+    // Apply brightness to the canvas
+    ctx.filter = `brightness(${brightness})`;
+}
+
 
         // Update Function
 
-        function update(dt) {
-            var playerSegment = findSegment(position + playerZ);
-            var playerW = playerStraightSprite.width * SPRITES.SCALE;
-            var playerH = playerStraightSprite.height * SPRITES.SCALE;
-            var speedPercent = speed / maxSpeed;
-            var dx = dt * 2 * speedPercent;
-            var startPosition = position;
-            var bounce = 0;
+function update(dt) {
+    updateDayNightCycle(dt); // Update the day/night cycle
+    updateRain(dt); // Update the rain effect
 
-            // Dynamic camera adjustments
-            var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
-            var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
+    var playerSegment = findSegment(position + playerZ);
+    var playerW = playerStraightSprite.width * SPRITES.SCALE;
+    var playerH = playerStraightSprite.height * SPRITES.SCALE;
+    var speedPercent = speed / maxSpeed;
+    var dx = dt * 2 * speedPercent;
+    var startPosition = position;
+    var bounce = 0;
 
-            updateCars(dt, playerSegment, playerW);
+    // Dynamic camera adjustments
+    var dynamicCameraHeight = 1000 - (speedPercent * 500); // Lower camera at higher speeds
+    var cameraTilt = (playerSegment.p2.world.y - playerSegment.p1.world.y) * 2; // Swoop effect over hills
 
-            position = Util.increase(position, dt * speed, trackLength);
+    updateCars(dt, playerSegment, playerW);
 
-            if (keyLeft) playerX -= dx;
-            else if (keyRight) playerX += dx;
+    position = Util.increase(position, dt * speed, trackLength);
 
-            playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
+    if (keyLeft) playerX -= dx;
+    else if (keyRight) playerX += dx;
 
-            if (keyFaster) speed = Util.accelerate(speed, accel, dt);
-            else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
-            else speed = Util.accelerate(speed, decel, dt);
+    playerX -= dx * speedPercent * playerSegment.curve * centrifugal;
 
-            // Check if the player is off-road
-            if ((playerX < -1) || (playerX > 1)) {
-                if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
+    if (keyFaster) speed = Util.accelerate(speed, accel, dt);
+    else if (keySlower) speed = Util.accelerate(speed, breaking, dt);
+    else speed = Util.accelerate(speed, decel, dt);
 
-                // Add a bounce effect when the car is off-road
-                bounce = Math.sin(Date.now() / 100) * 10;
+    // Check if the player is off-road
+    if ((playerX < -1) || (playerX > 1)) {
+        if (speed > offRoadLimit) speed = Util.accelerate(speed, offRoadDecel, dt);
 
-                // Trigger screen shake when off-road
-                shakeAmount = Math.min(10, shakeAmount + 5);
+        // Add a bounce effect when the car is off-road
+        bounce = Math.sin(Date.now() / 100) * 10;
+
+        // Trigger screen shake when off-road
+        shakeAmount = Math.min(10, shakeAmount + 5);
+    }
+
+    // Collision detection with other cars
+    for (var n = 0; n < playerSegment.cars.length; n++) {
+        var car = playerSegment.cars[n];
+        var carW = car.sprite.width * SPRITES.SCALE;
+        var carH = car.sprite.height * SPRITES.SCALE;
+
+        var playerBoundingBox = {
+            left: playerX - playerW / 2,
+            right: playerX + playerW / 2,
+            top: playerZ,
+            bottom: playerZ + playerH
+        };
+
+        var carBoundingBox = {
+            left: car.offset - carW / 2,
+            right: car.offset + carW / 2,
+            top: car.z,
+            bottom: car.z + carH
+        };
+
+        // Check for bounding box overlap (collision)
+        if (speed > car.speed) {
+            if (playerBoundingBox.right > carBoundingBox.left &&
+                playerBoundingBox.left < carBoundingBox.right &&
+                playerBoundingBox.bottom > carBoundingBox.top &&
+                playerBoundingBox.top < carBoundingBox.bottom) {
+
+                // Handle collision response
+                speed = car.speed * (car.speed / speed);
+                position = Util.increase(car.z, -playerZ, trackLength);
+
+                // Trigger a stronger shake on collision, but smoother
+                shakeAmount = Math.min(15, shakeAmount + 7);
+                break;
             }
-
-            // Collision detection with other cars
-            for (var n = 0; n < playerSegment.cars.length; n++) {
-                var car = playerSegment.cars[n];
-                var carW = car.sprite.width * SPRITES.SCALE;
-                var carH = car.sprite.height * SPRITES.SCALE;
-
-                var playerBoundingBox = {
-                    left: playerX - playerW / 2,
-                    right: playerX + playerW / 2,
-                    top: playerZ,
-                    bottom: playerZ + playerH
-                };
-
-                var carBoundingBox = {
-                    left: car.offset - carW / 2,
-                    right: car.offset + carW / 2,
-                    top: car.z,
-                    bottom: car.z + carH
-                };
-
-                // Check for bounding box overlap (collision)
-                if (speed > car.speed) {
-                    if (playerBoundingBox.right > carBoundingBox.left &&
-                        playerBoundingBox.left < carBoundingBox.right &&
-                        playerBoundingBox.bottom > carBoundingBox.top &&
-                        playerBoundingBox.top < carBoundingBox.bottom) {
-
-                        // Handle collision response
-                        speed = car.speed * (car.speed / speed);
-                        position = Util.increase(car.z, -playerZ, trackLength);
-
-                        // Trigger a stronger shake on collision, but smoother
-                        shakeAmount = Math.min(15, shakeAmount + 7);
-                        break;
-                    }
-                }
-            }
-
-            playerX = Util.limit(playerX, -3, 3);
-            speed = Util.limit(speed, 0, maxSpeed);
-
-            skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-            hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-            treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
-
-            // Reduce shakeAmount over time for a smoother effect
-            shakeAmount *= shakeDecay;
-            if (shakeAmount < 0.5) shakeAmount = 0;
-
-            if (position > playerZ) {
-                if (currentLapTime && (startPosition < playerZ)) {
-                    lastLapTime = currentLapTime;
-                    lastLapCoins = hud.coin_count.value;
-                    recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
-                    hud.coin_count.value = 0;
-                    currentLapTime = 0;
-                    if (!firstLapComplete) {
-                        firstLapComplete = true;
-                    }
-                    if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
-                        localStorage.fast_lap_time = lastLapTime;
-                        updateHud('fast_lap_time', formatTime(lastLapTime));
-                        document.getElementById('fast_lap_time').classList.add('fastest');
-                        document.getElementById('last_lap_time').classList.add('fastest');
-                    } else {
-                        document.getElementById('fast_lap_time').classList.remove('fastest');
-                        document.getElementById('last_lap_time').classList.remove('fastest');
-                    }
-                    updateHud('last_lap_time', formatTime(lastLapTime));
-                    document.getElementById('last_lap_time').style.display = 'inline';
-                } else {
-                    currentLapTime += dt;
-                }
-            }
-
-            updateHud('speed', 5 * Math.round(speed / 500));
-            updateHud('current_lap_time', formatTime(currentLapTime));
-
-            checkCoinCollection({ x: playerX, z: position + playerZ });
-
-            coinTimer += dt * 1000;
-            if (coinTimer >= coinDropInterval) {
-                dropCoins();
-                coinTimer = 0;
-                coinDropInterval = Util.randomInt(2000, 5000);
-            }
-
-            // Apply the dynamic camera changes
-            cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
-
-            // Update rain effect
-            updateRain(dt);
         }
+    }
+
+    playerX = Util.limit(playerX, -3, 3);
+    speed = Util.limit(speed, 0, maxSpeed);
+
+    skyOffset = Util.increase(skyOffset, skySpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+    hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+    treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position - startPosition) / segmentLength, 1);
+
+    // Reduce shakeAmount over time for a smoother effect
+    shakeAmount *= shakeDecay;
+    if (shakeAmount < 0.5) shakeAmount = 0;
+
+    if (position > playerZ) {
+        if (currentLapTime && (startPosition < playerZ)) {
+            lastLapTime = currentLapTime;
+            lastLapCoins = hud.coin_count.value;
+            recordRaceRound(tgName, tgID, hud.coin_count.value, parseInt(lastLapTime));
+            hud.coin_count.value = 0;
+            currentLapTime = 0;
+            if (!firstLapComplete) {
+                firstLapComplete = true;
+            }
+            if (lastLapTime <= Util.toFloat(localStorage.fast_lap_time)) {
+                localStorage.fast_lap_time = lastLapTime;
+                updateHud('fast_lap_time', formatTime(lastLapTime));
+                document.getElementById('fast_lap_time').classList.add('fastest');
+                document.getElementById('last_lap_time').classList.add('fastest');
+            } else {
+                document.getElementById('fast_lap_time').classList.remove('fastest');
+                document.getElementById('last_lap_time').classList.remove('fastest');
+            }
+            updateHud('last_lap_time', formatTime(lastLapTime));
+            document.getElementById('last_lap_time').style.display = 'inline';
+        } else {
+            currentLapTime += dt;
+        }
+    }
+
+    updateHud('speed', 5 * Math.round(speed / 500));
+    updateHud('current_lap_time', formatTime(currentLapTime));
+
+    checkCoinCollection({
+        x: playerX,
+        z: position + playerZ
+    });
+
+    coinTimer += dt * 1000;
+    if (coinTimer >= coinDropInterval) {
+        dropCoins();
+        coinTimer = 0;
+        coinDropInterval = Util.randomInt(2000, 5000);
+    }
+
+    // Apply the dynamic camera changes
+    cameraHeight = dynamicCameraHeight + cameraTilt + bounce;
+}
+
 
         // Render Function
 
@@ -377,9 +449,18 @@
 
             ctx.clearRect(0, 0, width, height);
 
-            Render.background(ctx, backgroundSky, width, height, { w: backgroundSky.width, h: backgroundSky.height }, skyOffset + shakeX, resolution * skySpeed * playerY + shakeY);
-            Render.background(ctx, backgroundHills, width, height, { w: backgroundHills.width, h: backgroundHills.height }, hillOffset + shakeX, resolution * hillSpeed * playerY + shakeY);
-            Render.background(ctx, backgroundTrees, width, height, { w: backgroundTrees.width, h: backgroundTrees.height }, treeOffset + shakeX, resolution * treeSpeed * playerY + shakeY);
+            Render.background(ctx, backgroundSky, width, height, {
+                w: backgroundSky.width,
+                h: backgroundSky.height
+            }, skyOffset + shakeX, resolution * skySpeed * playerY + shakeY);
+            Render.background(ctx, backgroundHills, width, height, {
+                w: backgroundHills.width,
+                h: backgroundHills.height
+            }, hillOffset + shakeX, resolution * hillSpeed * playerY + shakeY);
+            Render.background(ctx, backgroundTrees, width, height, {
+                w: backgroundTrees.width,
+                h: backgroundTrees.height
+            }, treeOffset + shakeX, resolution * treeSpeed * playerY + shakeY);
 
             // Render all paths
             renderPath(0, x, dx, playerY, maxy); // Main path
@@ -426,8 +507,22 @@
             segments.push({
                 index: n,
                 path: path || 0, // 0 = main path, 1 = left split, 2 = right split
-                p1: { world: { y: lastY(path), z: n * segmentLength }, camera: {}, screen: {} },
-                p2: { world: { y: y, z: (n + 1) * segmentLength }, camera: {}, screen: {} },
+                p1: {
+                    world: {
+                        y: lastY(path),
+                        z: n * segmentLength
+                    },
+                    camera: {},
+                    screen: {}
+                },
+                p2: {
+                    world: {
+                        y: y,
+                        z: (n + 1) * segmentLength
+                    },
+                    camera: {},
+                    screen: {}
+                },
                 curve: curve,
                 sprites: [],
                 cars: [],
@@ -436,7 +531,10 @@
         }
 
         function addSprite(n, sprite, offset) {
-            segments[n].sprites.push({ source: sprite, offset: offset });
+            segments[n].sprites.push({
+                source: sprite,
+                offset: offset
+            });
         }
 
         function addRoad(enter, hold, leave, curve, y, path) {
@@ -457,9 +555,24 @@
         }
 
         var ROAD = {
-            LENGTH: { NONE: 0, SHORT: 25, MEDIUM: 50, LONG: 100 },
-            HILL: { NONE: 0, LOW: 20, MEDIUM: 40, HIGH: 60 },
-            CURVE: { NONE: 0, EASY: 2, MEDIUM: 4, HARD: 6 }
+            LENGTH: {
+                NONE: 0,
+                SHORT: 25,
+                MEDIUM: 50,
+                LONG: 100
+            },
+            HILL: {
+                NONE: 0,
+                LOW: 20,
+                MEDIUM: 40,
+                HIGH: 60
+            },
+            CURVE: {
+                NONE: 0,
+                EASY: 2,
+                MEDIUM: 4,
+                HARD: 6
+            }
         };
 
         function addStraight(num, path) {
@@ -545,8 +658,16 @@
             var startLineSegment1 = segments[findSegment(playerZ).index + 1];
             var startLineSegment2 = segments[findSegment(playerZ).index + 1];
 
-            startLineSegment1.color = { road: 'white', grass: startLineSegment1.color.grass, rumble: startLineSegment1.color.rumble };
-            startLineSegment2.color = { road: 'white', grass: startLineSegment2.color.grass, rumble: startLineSegment2.color.rumble };
+            startLineSegment1.color = {
+                road: 'white',
+                grass: startLineSegment1.color.grass,
+                rumble: startLineSegment1.color.rumble
+            };
+            startLineSegment2.color = {
+                road: 'white',
+                grass: startLineSegment2.color.grass,
+                rumble: startLineSegment2.color.rumble
+            };
 
             for (var n = 0; n < rumbleLength; n++) {
                 segments[segments.length - 1 - n].color = COLORS.FINISH;
@@ -555,48 +676,47 @@
             trackLength = segments.length * segmentLength;
         }
 
-function resetSprites() {
-    addSprite(20, billboard01Sprite, -1);
-    addSprite(40, billboard02Sprite, -1);
-    addSprite(60, billboard03Sprite, -1);
-    addSprite(80, billboard04Sprite, -1);
-    addSprite(100, billboard05Sprite, -1);
-    addSprite(120, billboard06Sprite, -1);
-    addSprite(140, billboard07Sprite, -1);
-    addSprite(160, billboard08Sprite, -1);
-    addSprite(180, billboard09Sprite, -1);
+        function resetSprites() {
+            addSprite(20, billboard01Sprite, -1);
+            addSprite(40, billboard02Sprite, -1);
+            addSprite(60, billboard03Sprite, -1);
+            addSprite(80, billboard04Sprite, -1);
+            addSprite(100, billboard05Sprite, -1);
+            addSprite(120, billboard06Sprite, -1);
+            addSprite(140, billboard07Sprite, -1);
+            addSprite(160, billboard08Sprite, -1);
+            addSprite(180, billboard09Sprite, -1);
 
-    addSprite(240, billboard01Sprite, -1.2);
-    addSprite(240, billboard02Sprite, 1.2);
-    addSprite(segments.length - 25, billboard03Sprite, -1.2);
-    addSprite(segments.length - 25, billboard04Sprite, 1.2);
+            addSprite(240, billboard01Sprite, -1.2);
+            addSprite(240, billboard02Sprite, 1.2);
+            addSprite(segments.length - 25, billboard03Sprite, -1.2);
+            addSprite(segments.length - 25, billboard04Sprite, 1.2);
 
-    for (var n = 10; n < 200; n += 4 + Math.floor(n / 100)) {
-        addSprite(n, palmTreeSprite, 1 + Math.random() * 0.5); // Right side of the road
-        addSprite(n, palmTreeSprite, -1 - Math.random() * 0.5); // Left side of the road
-    }
+            for (var n = 10; n < 200; n += 4 + Math.floor(n / 100)) {
+                addSprite(n, palmTreeSprite, 1 + Math.random() * 0.5); // Right side of the road
+                addSprite(n, palmTreeSprite, -1 - Math.random() * 0.5); // Left side of the road
+            }
 
-    for (var n = 250; n < 1000; n += 5) {
-        addSprite(n, columnSprite, 1.1);
-        addSprite(n + Util.randomInt(0, 5), tree1Sprite, -1 - (Math.random() * 2));
-        addSprite(n + Util.randomInt(0, 5), tree1Sprite, -1 - (Math.random() * 2));
-    }
+            for (var n = 250; n < 1000; n += 5) {
+                addSprite(n, columnSprite, 1.1);
+                addSprite(n + Util.randomInt(0, 5), tree1Sprite, -1 - (Math.random() * 2));
+                addSprite(n + Util.randomInt(0, 5), tree1Sprite, -1 - (Math.random() * 2));
+            }
 
-    for (var n = 200; n < segments.length; n += 3) {
-        addSprite(n, Util.randomChoice(spritesPlants), Util.randomChoice([1, -1]) * (2 + Math.random() * 5));
-    }
+            for (var n = 200; n < segments.length; n += 3) {
+                addSprite(n, Util.randomChoice(spritesPlants), Util.randomChoice([1, -1]) * (2 + Math.random() * 5));
+            }
 
-    for (var n = 1000; n < (segments.length - 50); n += 100) {
-        var side = Util.randomChoice([1, -1]);
-        addSprite(n + Util.randomInt(0, 50), Util.randomChoice(spritesBillboards), -side);
-        for (var i = 0; i < 20; i++) {
-            var sprite = Util.randomChoice(spritesPlants);
-            var offset = side * (1.5 + Math.random());
-            addSprite(n + Util.randomInt(0, 50), sprite, offset);
+            for (var n = 1000; n < (segments.length - 50); n += 100) {
+                var side = Util.randomChoice([1, -1]);
+                addSprite(n + Util.randomInt(0, 50), Util.randomChoice(spritesBillboards), -side);
+                for (var i = 0; i < 20; i++) {
+                    var sprite = Util.randomChoice(spritesPlants);
+                    var offset = side * (1.5 + Math.random());
+                    addSprite(n + Util.randomInt(0, 50), sprite, offset);
+                }
+            }
         }
-    }
-}
-
 
         function resetCars() {
             cars = [];
@@ -605,7 +725,12 @@ function resetSprites() {
                 var z = Math.floor(Math.random() * segments.length) * segmentLength;
                 var sprite = Util.randomChoice(spritesCars);
                 var speed = maxSpeed / 4 + Math.random() * maxSpeed / (sprite === semiSprite ? 4 : 2);
-                var car = { offset: offset, z: z, sprite: sprite, speed: speed };
+                var car = {
+                    offset: offset,
+                    z: z,
+                    sprite: sprite,
+                    speed: speed
+                };
                 var segment = findSegment(car.z);
                 segment.cars.push(car);
                 cars.push(car);
@@ -617,23 +742,26 @@ function resetSprites() {
             dropCoins();
         }
 
-function dropCoins() {
-    var zStart = position + playerZ + 8000; // starting z position
-    var zSpacing = 2000; // spacing between coins
-    // Randomly choose the number of coins to drop: either 3, 4, or 6
-    var numberOfCoins = [3, 4, 6][Math.floor(Math.random() * 3)]; 
-    var minSpacing = 300; // Minimum random spacing between coins
-    var maxSpacing = 600; // Maximum random spacing between coins
+        function dropCoins() {
+            var zStart = position + playerZ + 8000; // starting z position
+            var zSpacing = 2000; // spacing between coins
+            // Randomly choose the number of coins to drop: either 3, 4, or 6
+            var numberOfCoins = [3, 4, 6][Math.floor(Math.random() * 3)];
+            var minSpacing = 300; // Minimum random spacing between coins
+            var maxSpacing = 600; // Maximum random spacing between coins
 
-    for (var i = 0; i < numberOfCoins; i++) {
-        var offset = 0; // All coins drop in the middle lane
-        var zPosition = zStart + i * zSpacing + Util.randomInt(minSpacing, maxSpacing);
+            for (var i = 0; i < numberOfCoins; i++) {
+                var offset = 0; // All coins drop in the middle lane
+                var zPosition = zStart + i * zSpacing + Util.randomInt(minSpacing, maxSpacing);
 
-        coins.push({ id: i + coins.length, offset: offset, z: zPosition, collected: false });
-    }
-}
-
-
+                coins.push({
+                    id: i + coins.length,
+                    offset: offset,
+                    z: zPosition,
+                    collected: false
+                });
+            }
+        }
 
         Game.run({
             canvas: canvas,
@@ -669,7 +797,20 @@ function dropCoins() {
                 "sprites/boulder3",
                 "sprites/bush1",
                 "sprites/bush2",
+                "sprites/bush3",
+                "sprites/bush4",
+                "sprites/bush5",
+                "sprites/bush6",
+                "sprites/bush7",
+                "sprites/bush8",
+                "sprites/bush9",
+                "sprites/bush10",
                 "sprites/cactus",
+                "sprites/cactus1",
+                "sprites/cactus2",
+                "sprites/cactus3",
+                "sprites/cactus4",
+                "sprites/cactus5",
                 "sprites/stump",
                 "sprites/semi",
                 "sprites/truck",
@@ -687,17 +828,65 @@ function dropCoins() {
                 "sprites/coin"
             ],
 
-            keys: [
-                { keys: [KEY.LEFT, KEY.A], mode: 'down', action: function () { keyLeft = true; } },
-                { keys: [KEY.RIGHT, KEY.D], mode: 'down', action: function () { keyRight = true; } },
-                { keys: [KEY.UP, KEY.W], mode: 'down', action: function () { keyFaster = true; } },
-                { keys: [KEY.DOWN, KEY.S], mode: 'down', action: function () { keySlower = true; } },
-                { keys: [KEY.LEFT, KEY.A], mode: 'up', action: function () { keyLeft = false; } },
-                { keys: [KEY.RIGHT, KEY.D], mode: 'up', action: function () { keyRight = false; } },
-                { keys: [KEY.UP, KEY.W], mode: 'up', action: function () { keyFaster = false; } },
-                { keys: [KEY.DOWN, KEY.S], mode: 'up', action: function () { keySlower = false; } }
+            keys: [{
+                    keys: [KEY.LEFT, KEY.A],
+                    mode: 'down',
+                    action: function() {
+                        keyLeft = true;
+                    }
+                },
+                {
+                    keys: [KEY.RIGHT, KEY.D],
+                    mode: 'down',
+                    action: function() {
+                        keyRight = true;
+                    }
+                },
+                {
+                    keys: [KEY.UP, KEY.W],
+                    mode: 'down',
+                    action: function() {
+                        keyFaster = true;
+                    }
+                },
+                {
+                    keys: [KEY.DOWN, KEY.S],
+                    mode: 'down',
+                    action: function() {
+                        keySlower = true;
+                    }
+                },
+                {
+                    keys: [KEY.LEFT, KEY.A],
+                    mode: 'up',
+                    action: function() {
+                        keyLeft = false;
+                    }
+                },
+                {
+                    keys: [KEY.RIGHT, KEY.D],
+                    mode: 'up',
+                    action: function() {
+                        keyRight = false;
+                    }
+                },
+                {
+                    keys: [KEY.UP, KEY.W],
+                    mode: 'up',
+                    action: function() {
+                        keyFaster = false;
+                    }
+                },
+                {
+                    keys: [KEY.DOWN, KEY.S],
+                    mode: 'up',
+                    action: function() {
+                        keySlower = false;
+                    }
+                }
             ],
-            ready: function (images) {
+
+            ready: function(images) {
                 background = images[0];
                 sprites = images[1];
                 playerStraightSprite = images[2];
@@ -726,26 +915,62 @@ function dropCoins() {
                 boulder3Sprite = images[25];
                 bush1Sprite = images[26];
                 bush2Sprite = images[27];
-                cactusSprite = images[28];
-                stumpSprite = images[29];
-                semiSprite = images[30];
-                truckSprite = images[31];
-                car01Sprite = images[32];
-                car02Sprite = images[33];
-                car03Sprite = images[34];
-                car04Sprite = images[35];
-                backgroundSky = images[36];
-                backgroundHills = images[37];
-                backgroundTrees = images[38];
-                truck1Sprite = images[39];
-                truck2Sprite = images[40];
-                truck3Sprite = images[41];
-                truck4Sprite = images[42];
-                coinSprite = images[43];
+                bush3Sprite = images[28];
+                bush4Sprite = images[29];
+                bush5Sprite = images[30];
+                bush6Sprite = images[31];
+                bush7Sprite = images[32];
+                bush8Sprite = images[33];
+                bush9Sprite = images[34];
+                bush10Sprite = images[35];
+                cactusSprite = images[36];
+                cactus1Sprite = images[37];
+                cactus2Sprite = images[38];
+                cactus3Sprite = images[39];
+                cactus4Sprite = images[40];
+                cactus5Sprite = images[41];
+                stumpSprite = images[42];
+                semiSprite = images[43];
+                truckSprite = images[44];
+                car01Sprite = images[45];
+                car02Sprite = images[46];
+                car03Sprite = images[47];
+                car04Sprite = images[48];
+                backgroundSky = images[49];
+                backgroundHills = images[50];
+                backgroundTrees = images[51];
+                truck1Sprite = images[52];
+                truck2Sprite = images[53];
+                truck3Sprite = images[54];
+                truck4Sprite = images[55];
+                coinSprite = images[56];
 
-                spritesBillboards = [billboard01Sprite, billboard02Sprite, billboard03Sprite, billboard04Sprite, billboard05Sprite, billboard06Sprite, billboard07Sprite, billboard08Sprite, billboard09Sprite];
-                spritesPlants = [tree1Sprite, tree2Sprite, deadTree1Sprite, deadTree2Sprite, palmTreeSprite, boulder1Sprite, boulder2Sprite, boulder3Sprite, bush1Sprite, bush2Sprite, cactusSprite, stumpSprite];
-                spritesCars = [semiSprite, truckSprite, car01Sprite, car02Sprite, car03Sprite, car04Sprite, truck1Sprite, truck2Sprite, truck3Sprite, truck4Sprite];
+                spritesBillboards = [
+                    billboard01Sprite, billboard02Sprite, billboard03Sprite,
+                    billboard04Sprite, billboard05Sprite, billboard06Sprite,
+                    billboard07Sprite, billboard08Sprite, billboard09Sprite
+                ];
+                spritesPlants = [
+                    tree1Sprite, tree2Sprite, deadTree1Sprite, deadTree2Sprite,
+                    palmTreeSprite, boulder1Sprite, boulder2Sprite, boulder3Sprite,
+                    bush1Sprite, bush2Sprite, bush3Sprite, bush4Sprite, bush5Sprite,
+                    bush6Sprite, bush7Sprite, bush8Sprite, bush9Sprite, bush10Sprite,
+                    cactusSprite, cactus1Sprite, cactus2Sprite, cactus3Sprite, cactus4Sprite, cactus5Sprite,
+                    stumpSprite
+                ];
+                spritesCars = [
+                    semiSprite, truckSprite, car01Sprite, car02Sprite, car03Sprite, car04Sprite,
+                    truck1Sprite, truck2Sprite, truck3Sprite, truck4Sprite,
+                    truck5Sprite, truck6Sprite, truck7Sprite, truck8Sprite, truck9Sprite,
+                    truck10Sprite, truck11Sprite, truck12Sprite, truck13Sprite, truck14Sprite,
+                    truck15Sprite, truck16Sprite, truck17Sprite, truck18Sprite, truck19Sprite,
+                    truck20Sprite, truck21Sprite, truck22Sprite, truck23Sprite,
+                    semiSprite, semi1Sprite, semi2Sprite, semi3Sprite, semi4Sprite,
+                    semi5Sprite, semi6Sprite, semi7Sprite, semi8Sprite, semi9Sprite,
+                    semi10Sprite, semi11Sprite, semi12Sprite, semi13Sprite, semi14Sprite,
+                    semi15Sprite, semi16Sprite, semi17Sprite, semi18Sprite, semi19Sprite,
+                    semi20Sprite
+                ];
 
                 reset();
                 localStorage.fast_lap_time = localStorage.fast_lap_time || 180;
@@ -772,7 +997,6 @@ function dropCoins() {
             if ((segments.length == 0) || (options.segmentLength) || (options.rumbleLength))
                 resetRoad();
         }
-
     </script>
 
 </body>
