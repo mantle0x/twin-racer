@@ -11,7 +11,6 @@
     <script src="api.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/tonweb@0.0.41/dist/tonweb.js"></script>
 
-
     <style>
         body {
             font-family: 'Press Start 2P', cursive;
@@ -187,19 +186,32 @@
                     <p>Connect your TON Wallet <span>(100 Coins)</span></p>
                     <div id="ton-connect"></div>
                 </div>
-                
+
                 <div class="quest-item">
                     <p>Invite<span>(100 Coins, 5% on earned coins)</span></p>
                     <button id="sendMessageButton">Invite</button>
                 </div>
+
                 <div class="quest-item">
                     <p>Daily Check-In <span>(10 Coins, reset every 24h)</span></p>
                     <button id="dailyCheckIn" onclick="dailyCheckIn()">Check In</button>
                 </div>
+
                 <div class="quest-item">
                     <p>Daily Log-In <span>(100 Coins, reset every 24h)</span></p>
                     <button id="dailyLogIn" onclick="dailyLogin()">Log In</button>
                 </div>
+
+                <div class="quest-item">
+                    <p>Visit our Partner Adsterra <span>(50 Coins)</span></p>
+                    <button id="adsterraQuestButton" onclick="startAdsterraQuest()">Visit</button>
+                </div>
+
+                <div class="quest-item">
+                    <p>Visit our Sponsor Moneytag <span>(50 Coins)</span></p>
+                    <button id="moneytagQuestButton" onclick="startMoneytagQuest()">Visit</button>
+                </div>
+
                 <!-- Placeholder for dynamic quests -->
                 <div id="dynamic-quests"></div>
 
@@ -257,16 +269,11 @@
             }
         }
 
-
-        //document.getElementById('ton-connect').addEventListener('click', connectToWallet);
-
-
         document.getElementById('sendMessageButton').addEventListener('click', function() {
             // Define the message you want the user to send
             var message = `Check out this awesome Mini App!  `
             message += `https://t.me/TwinRacer_bot/TwinRacer?startapp=ref`
             message += tgID
-
 
             // Construct the Telegram link; user will choose the recipient
             const telegramLink = `https://t.me/share/url?url=&text=${encodeURIComponent(message)}`;
@@ -279,7 +286,6 @@
             var dynamicQuestsContainer = document.getElementById('dynamic-quests');
             dynamicQuestsContainer.innerHTML = '';
             try {
-                //const questsData = await quests(tgID);
                 const questsData = await quests(tgID);
                 questsData.forEach(quest => {
                     const questItem = document.createElement('div');
@@ -297,8 +303,7 @@
                                 `startTask(this,${quest.questID},'${quest.questLink}')` 
                                 : quest.questStatus === 2 ? 
                                     `completeTask(this,'${quest.questID}','${tgID}' )` 
-                                    : 
-                                    ''
+                                    : ''
                                     }
                                     "
                         >
@@ -314,7 +319,6 @@
                 console.error('Failed to load dynamic quests:', error);
             }
         }
-
 
         function setupCanvas() {
             canvas = document.getElementById('canvasCoins');
@@ -342,7 +346,6 @@
                 };
             }
         }
-
 
         function startCoinRain() {
             coinRainInterval = setInterval(drawCoinRain, 30);
@@ -379,6 +382,7 @@
             setupCanvas();
             loadDynamicQuests()
         }
+
         function completeTask(button,questID) {
             completeQuest(tgID,questID)
             const questItem = button.closest('.quest-item');
@@ -389,108 +393,69 @@
             startCoinRain()
         }
 
-        function checkTask(button, coins, startTime, isVideo) {
-            const questItem = button.closest('.quest-item');
-            const currentTime = Date.now();
+        async function startAdsterraQuest() {
+            const button = document.getElementById('adsterraQuestButton');
+            const url = 'https://www.cpmrevenuegate.com/pkrsyhzt5?key=a9a4020568aa11ca4f2f633f310e98fb';
 
-            if (isVideo && currentTime - startTime < 600000) {
-                questItem.classList.add('grey-out');
-                let countdown = 30;
+            button.disabled = true;  // Disable the button to prevent multiple clicks
+            button.textContent = 'Visiting...';
 
-                const countdownInterval = setInterval(() => {
-                    if (countdown > 0) {
-                        questItem.setAttribute('data-countdown', `Wait ${countdown} sec`);
-                        countdown--;
-                    } else {
-                        clearInterval(countdownInterval);
-                        questItem.classList.remove('grey-out');
-                        button.textContent = 'Check';
-                        button.disabled = false;
-                    }
-                }, 1000);
+            const startTime = Date.now();
+            window.open(url, '_blank');
 
-                button.disabled = true;
-                button.textContent = 'Task not finished';
-            } else {
-                button.textContent = 'Completed';
-                questItem.classList.add('completed');
-                button.disabled = true;
-                updateTotalCoins(coins);
-                startCoinRain();
-            }
+            setTimeout(() => {
+                const elapsedTime = (Date.now() - startTime) / 1000;
+
+                if (elapsedTime >= 5) {
+                    completeQuest(tgID, 'adsterra'); // Mark quest as completed
+                    button.textContent = 'Completed';
+                    startCoinRain();  // Trigger coin rain
+                } else {
+                    button.textContent = 'Visit';
+                    button.disabled = false;  // Re-enable the button if the user didn't wait long enough
+                    alert('Please stay on the partner page for at least 5 seconds.');
+                }
+            }, 5000);
+        }
+
+        async function startMoneytagQuest() {
+            const button = document.getElementById('moneytagQuestButton');
+            const url = 'https://hesteedrepse.net/4/8007722';
+
+            button.disabled = true;
+            button.textContent = 'Visiting...';
+
+            const startTime = Date.now();
+            window.open(url, '_blank');
+
+            setTimeout(() => {
+                const elapsedTime = (Date.now() - startTime) / 1000;
+
+                if (elapsedTime >= 5) {
+                    completeQuest(tgID, 'moneytag');  // Mark quest as completed
+                    button.textContent = 'Completed';
+                    startCoinRain();  // Trigger coin rain
+                } else {
+                    button.textContent = 'Visit';
+                    button.disabled = false;
+                    alert('Please stay on the sponsor page for at least 5 seconds.');
+                }
+            }, 5000);
         }
 
         async function updateCoins() {
             userData = await userData(tgID)
             updateTotalCoins(userData.points)
         }
+
         function updateTotalCoins(coins) {
             let totalCoinsElement = document.getElementById('coin-overview');
             let totalCoins = parseInt(totalCoinsElement.textContent.replace(/\D/g, '')) + coins;
             totalCoinsElement.textContent = `Total Coins: ${totalCoins}`;
         }
 
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-
-
-function base64ToHex(base64) {
-    // Base64-String dekodieren in ein Bytearray
-    const raw = atob(base64);
-    let result = '';
-
-    // Jedes Byte in einen zweistelligen HEX-Wert umwandeln und zum Ergebnis hinzufügen
-    for (let i = 0; i < raw.length; i++) {
-        const hex = raw.charCodeAt(i).toString(16).padStart(2, '0');
-        result += hex;
-    }
-
-    return result;
-}
-
-
-async function sendTonTransaction() {
-    // Ensure the DOM is fully loaded before starting
-    
-    const transaction = {
-    validUntil: Math.floor(Date.now() / 1000) + 60, // 60 sec
-    messages: [
-        {
-            address: "0:281fa2e973d8a0d9685321cd5c579bdae62512a831fa987eb2d2ca24e8d04621",
-            amount: "200000" // 0.02 Toncoin in nanotons
-         // stateInit: "base64bocblahblahblah==" // just for instance. Replace with your transaction initState or remove
-        }
-    ],
-    
-}
-
-    try {
-        const result = await tonConnectUI.sendTransaction(transaction, {
-            modals: ['before', 'success', 'error'],
-            notifications: ['before', 'success', 'error'],
-            skipRedirectToWallet: 'ios' //'ios' (default), or 'never', or 'always'
-        });
-
-        // you can use signed boc to find the transaction 
-        const tonweb = new TonWeb();
-        const bocCellBytes = await tonweb.boc.Cell.oneFromBoc(tonweb.utils.base64ToBytes(result.boc)).hash();
-
-        const hashBase64 = tonweb.utils.bytesToBase64(bocCellBytes);
-
-        return (base64ToHex(hashBase64))
-    } catch (e) {
-        console.error(e);
-    }
-    
-    
-
-    
-}
         async function checkConnectedWallet() {
             try {
-                // Check if a wallet is already connected
                 const connectedWallet = tonConnectUI.wallet;
                 if (connectedWallet && connectedWallet.account && connectedWallet.account.address) {
                     const walletAddress = connectedWallet.account.address;
@@ -508,31 +473,23 @@ async function sendTonTransaction() {
             }
         }
 
-        
         async function dailyCheckinAvailable() {
             try {
                 const data = await checkDailyCheckInAvailable(tgID);
                 console.log(data);
 
-                // Get the button element
                 const button = document.getElementById('dailyCheckIn');
 
                 if (data.available) {
-                    // Reward is available, handle the check-in logic here
-                    console.log(data.message);
-                    // Additional code to process the check-in
-                    button.textContent = "Check In"; // Ensure the button text is the default when available
-                    button.disabled = false; // Ensure the button is enabled if available
+                    button.textContent = "Check In";
+                    button.disabled = false;
                 } else {
-                    // Reward is not available
-                    button.disabled = true;  // Disable the button
-                    // Calculate the remaining time
+                    button.disabled = true;
                     const waitTimeSeconds = data.wait_time_seconds;
                     const hours = Math.floor(waitTimeSeconds / 3600);
                     const minutes = Math.floor((waitTimeSeconds % 3600) / 60);
 
-                    button.textContent = `Wait for ${hours}h ${minutes}m`;  // Update button text
-                
+                    button.textContent = `Wait for ${hours}h ${minutes}m`;  
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -544,30 +501,24 @@ async function sendTonTransaction() {
                 const data = await checkDailyLogInAvailable(tgID);
                 console.log(data);
 
-                // Get the button element
                 const button = document.getElementById('dailyLogIn');
 
                 if (data.available) {
-                    // Reward is available, handle the check-in logic here
-                    console.log(data.message);
-                    // Additional code to process the check-in
-                    button.textContent = "Log In"; // Ensure the button text is the default when available
-                    button.disabled = false; // Ensure the button is enabled if available
+                    button.textContent = "Log In";
+                    button.disabled = false;
                 } else {
-                    // Reward is not available
-                    button.disabled = true;  // Disable the button
-                    // Calculate the remaining time
+                    button.disabled = true;
                     const waitTimeSeconds = data.wait_time_seconds;
                     const hours = Math.floor(waitTimeSeconds / 3600);
                     const minutes = Math.floor((waitTimeSeconds % 3600) / 60);
 
-                    button.textContent = `Wait for ${hours}h ${minutes}m`;  // Update button text
-                
+                    button.textContent = `Wait for ${hours}h ${minutes}m`;  
                 }
             } catch (error) {
                 console.error('Error:', error);
             }
         }
+
         async function dailyCheckIn() {
             data = await doDailyCheckIn(tgID)
             if (data.message.startsWith('Daily checkin successful!')){
@@ -577,9 +528,9 @@ async function sendTonTransaction() {
                 startCoinRain()
             }
         }
+
         async function dailyLogin(){
             trxID = await sendTonTransaction()
-            //trxID = "xxxxx"
             data = await doDailyLogIn(tgID,trxID)
             console.log(data)
             if (data.message.startsWith('Daily login successful!')){
@@ -588,12 +539,54 @@ async function sendTonTransaction() {
                 dailyLoginAvailable(tgID)
                 startCoinRain()
             }
-}
+        }
 
-        // Load dynamic quests when the page is loaded
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        function base64ToHex(base64) {
+            const raw = atob(base64);
+            let result = '';
+
+            for (let i = 0; i < raw.length; i++) {
+                const hex = raw.charCodeAt(i).toString(16).padStart(2, '0');
+                result += hex;
+            }
+
+            return result;
+        }
+
+        async function sendTonTransaction() {
+            const transaction = {
+                validUntil: Math.floor(Date.now() / 1000) + 60, 
+                messages: [
+                    {
+                        address: "0:281fa2e973d8a0d9685321cd5c579bdae62512a831fa987eb2d2ca24e8d04621",
+                        amount: "200000" 
+                    }
+                ],
+            }
+
+            try {
+                const result = await tonConnectUI.sendTransaction(transaction, {
+                    modals: ['before', 'success', 'error'],
+                    notifications: ['before', 'success', 'error'],
+                    skipRedirectToWallet: 'ios'
+                });
+
+                const tonweb = new TonWeb();
+                const bocCellBytes = await tonweb.boc.Cell.oneFromBoc(tonweb.utils.base64ToBytes(result.boc)).hash();
+                const hashBase64 = tonweb.utils.bytesToBase64(bocCellBytes);
+
+                return base64ToHex(hashBase64)
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
         window.onload = () => {
-            // Wait for tgID to be defined before loading dynamic quests
-            
             const intervalId = setInterval(() => {
                 if (tgID) {
                     setupCanvas();
@@ -603,11 +596,11 @@ async function sendTonTransaction() {
                     checkConnectedWallet()
                     loadDynamicQuests();
                     
-                    clearInterval(intervalId); // Stop the interval once tgID is defined and quests are loaded
+                    clearInterval(intervalId);
                 } else {
                     console.log("Waiting for tgID to be initialized...");
                 }
-            }, 100); // Check every 100ms
+            }, 100);
         };
     </script>
 </body>
